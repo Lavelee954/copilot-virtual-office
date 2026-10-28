@@ -36,7 +36,7 @@
   .tag .model { margin-top:4px; font-size:10px; color:var(--ink); font-weight:600; text-shadow:0 1px 2px var(--paper); }
   .model-dot { width:6px; height:6px; display:inline-block; border-radius:50%; margin-right:4px; vertical-align:1px; }
   .bubble { width:max-content; max-width:250px; padding:10px 14px; background:var(--bubble); color:var(--bubble-ink); border:2.5px solid #49473c; border-radius:14px; font-size:15px; line-height:1.4; font-weight:700; box-shadow:0 3px 0 #49473c1c; transform-origin:center bottom; }
-  .bubble::after { content:''; position:absolute; left:calc(50% - 7px); bottom:-9px; width:13px; height:13px; background:inherit; border-right:2.5px solid #49473c; border-bottom:2.5px solid #49473c; transform:rotate(45deg); border-radius:0 0 3px 0; }
+  .bubble::after { content:''; position:absolute; left:calc(var(--tail-x, 50%) - 7px); bottom:-9px; width:13px; height:13px; background:inherit; border-right:2.5px solid #49473c; border-bottom:2.5px solid #49473c; transform:rotate(45deg); border-radius:0 0 3px 0; }
   .bubble .message { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .bubble.ghost { background:#fff8dc; }
   .bubble.rest { background:#fff6ef; }
@@ -75,6 +75,38 @@
     #empty { bottom:112px; flex-direction:column; gap:8px; text-align:center; width:calc(100% - 32px); padding:12px; }
   }
   @media (prefers-reduced-motion:reduce) { * { scroll-behavior:auto !important; } }
+  #viewToggle { color:var(--ink); text-decoration:none; font-size:12px; font-weight:700; white-space:nowrap; border:1.5px solid var(--line); border-radius:22px; padding:10px 13px; }
+  #viewToggle:hover { background:var(--pill); }
+  body[data-view="3d"] #sceneViewport { overflow:hidden; background:#e8eee5; }
+  body[data-view="3d"] #stage { min-width:0; min-height:0; }
+  body[data-view="3d"] canvas { touch-action:none; cursor:grab; }
+  body[data-view="3d"] canvas:active { cursor:grabbing; }
+  body[data-view="3d"] .pan-hint { display:none; }
+  .scene-caption { position:absolute; top:22px; left:30px; pointer-events:none; color:var(--green); }
+  #viewBadge { font-size:9px; font-weight:800; letter-spacing:2px; }
+  .scene-caption p { font-size:15px; margin:8px 0 0; color:var(--ink); font-weight:600; }
+  #sceneHelp { position:absolute; bottom:23px; left:30px; color:var(--muted); font-size:11px; pointer-events:none; }
+  #cameraControls { position:absolute; bottom:16px; right:24px; display:flex; align-items:center; gap:3px; padding:5px; border:1px solid var(--line); border-radius:16px; background:var(--paper); box-shadow:0 4px 15px #433e3410; }
+  #cameraControls button { border:0; background:transparent; color:var(--ink); width:37px; height:35px; border-radius:10px; cursor:pointer; font-size:22px; }
+  #cameraControls button:hover { background:var(--pill); }
+  .control-divider { width:1px; height:18px; background:var(--line); margin:0 4px; }
+  #sceneLoading { position:absolute; inset:0; display:flex; justify-content:center; align-items:center; gap:10px; background:var(--paper); color:var(--green); font-size:14px; }
+  .loading-flower { font-size:24px; }
+  #sceneNotice { position:absolute; top:18px; left:50%; transform:translateX(-50%); max-width:calc(100% - 32px); padding:10px 16px; background:var(--paper); border:1px solid var(--line); border-radius:12px; color:var(--ink); font-size:12px; }
+  .tag .name { max-width:190px; overflow:hidden; text-overflow:ellipsis; vertical-align:top; }
+  .tag .model { max-width:210px; overflow:hidden; text-overflow:ellipsis; }
+  @media (max-width:700px) {
+    .brand-icon { display:none; }
+    h1 { font-size:15px; }
+    #viewToggle { padding:9px; font-size:11px; }
+    .scene-caption { left:18px; top:18px; }
+    .scene-caption p { font-size:13px; }
+    #sceneHelp { bottom:72px; left:0; width:100%; text-align:center; font-size:10px; }
+    #cameraControls { right:50%; transform:translateX(50%); bottom:16px; }
+    body[data-view="3d"] .tag .name { max-width:120px; font-size:12px; padding:3px 6px; }
+    body[data-view="3d"] .tag .model { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+    body[data-view="2d"] .scene-caption, body[data-view="2d"] #sceneHelp { display:none; }
+  }
 </style>
 </head>
 <body data-connected="false">
@@ -83,13 +115,27 @@
     <div class="brand"><div class="eyebrow">COPILOT VILLAGE</div><h1>코파일럿 마을</h1></div>
     <span id="demoBadge" hidden>데모 포함</span>
     <span class="live" id="liveCount">친구 0명</span>
+    <a id="viewToggle" href="?view=2d">2D 보기</a>
     <button id="themeBtn" type="button" aria-label="밤 풍경으로 전환"><span id="themeIcon" aria-hidden="true">☾</span><span id="themeLabel">밤 풍경</span></button>
   </header>
-  <main id="sceneViewport" tabindex="0" aria-label="실시간 코파일럿 마을. 작은 화면에서는 좌우로 스크롤해서 둘러볼 수 있습니다.">
+  <main id="sceneViewport" tabindex="0" aria-label="실시간 코파일럿 마을">
     <div id="stage">
-      <canvas id="scene" role="img" aria-label="둥근 동물 친구들이 잔디 마을에서 코파일럿 작업 상태에 따라 일하고 쉬는 일러스트"></canvas>
+      <canvas id="scene" role="img" aria-label="둥근 동물 친구들이 잔디 마을에서 코파일럿 작업 상태에 따라 일하고 쉬는 3D 미니어처"></canvas>
       <div id="overlay"></div>
     </div>
+    <div class="scene-caption" aria-hidden="true"><span id="viewBadge">3D MINIATURE</span><p>오늘도 함께, 한 걸음.</p></div>
+    <div id="sceneLoading" role="status"><span class="loading-flower">✿</span>작은 마을을 불러오는 중이에요.</div>
+    <div id="sceneNotice" role="status" hidden></div>
+    <span id="sceneHelp">드래그로 회전 · 스크롤로 확대</span>
+    <nav id="cameraControls" aria-label="마을 시점 조절" hidden>
+      <button id="rotateLeft" type="button" aria-label="마을 왼쪽으로 회전" title="왼쪽으로 회전">↶</button>
+      <button id="rotateRight" type="button" aria-label="마을 오른쪽으로 회전" title="오른쪽으로 회전">↷</button>
+      <span class="control-divider"></span>
+      <button id="zoomOut" type="button" aria-label="마을 축소" title="축소">−</button>
+      <button id="zoomIn" type="button" aria-label="마을 확대" title="확대">+</button>
+      <span class="control-divider"></span>
+      <button id="resetView" type="button" aria-label="기본 시점으로 돌아가기" title="기본 시점">⌂</button>
+    </nav>
   </main>
   <aside id="empty">
     <div><strong>친구들의 출근을 기다리고 있어요</strong><p>터미널에서 <code>copilot</code>을 실행하면 마을에 친구가 찾아와요.</p></div>
@@ -103,7 +149,9 @@
       <span class="pan-hint">↔ 옆으로 움직여 마을을 둘러보세요</span>
     </div>
   </footer>
-  <script src="office.js"></script>
-  <script src="app.js"></script>
+  <script type="importmap">
+    {"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}
+  </script>
+  <script type="module" src="main.js"></script>
 </body>
 </html>

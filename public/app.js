@@ -144,6 +144,8 @@
   function syncOverlays() {
     const alive = new Set();
     const scale = Math.min(1.15, Math.max(0.65, Office.getScale()));
+    const is3d = document.body.dataset.view === '3d';
+    const labels = [], bubbles = [];
     for (const emp of employees) {
       if (!emp._slot) continue;
       const s = Office.getEmployeePosition(emp.id) || emp._slot;
@@ -154,10 +156,13 @@
       alive.add(tagKey);
       const tag = ensureDom(tagKey, 'tag');
       const tp = Office.toScreen(s.gx, s.gy, 14);
+      tag.hidden = tp.visible === false;
       tag.style.transform = `translate(${tp.x}px, ${tp.y}px) translateX(-50%) scale(${scale})`;
       const html = `<div class="name">${esc(emp.name)}</div>` +
         `<div class="model"><span class="model-dot" style="background:${Office.modelColor(emp.model)}"></span>${esc(emp.model || 'Copilot')} · ${esc(mood)} · ${emp.toolCount || 0}회</div>`;
       if (tag.innerHTML !== html) tag.innerHTML = html;
+      const mainLabel = { el: tag, x: tp.x, y: tp.y };
+      if (is3d && !tag.hidden) labels.push(mainLabel);
 
       const bKey = `bubble:${emp.id}`;
       alive.add(bKey);
@@ -165,11 +170,16 @@
       bubble.classList.toggle('ghost', emp.status === 'thinking');
       bubble.classList.toggle('rest', emp.status === 'idle');
       const bp = Office.toScreen(s.gx, s.gy, -120);
+      mainLabel.silhouette = { left: tp.x - 30 * scale, right: tp.x + 30 * scale, top: bp.y + 12 * scale, bottom: tp.y - 8 };
+      // Resting friends already show their state below their feet. Keep the
+      // 3D view clear for active work, especially when rows overlap in depth.
+      bubble.hidden = bp.visible === false || (document.body.dataset.view === '3d' && emp.status === 'idle');
       bubble.style.transform = `translate(${bp.x}px, ${bp.y}px) translate(-50%, -100%) scale(${scale})`;
       const text = activityText(emp, idleMs);
       const content = `<span class="message">${esc(text)}</span>`;
       if (bubble.innerHTML !== content) bubble.innerHTML = content;
       bubble.title = text;
+      if (is3d && !bubble.hidden) bubbles.push({ el: bubble, x: bp.x, y: bp.y });
 
       (emp.subagents || []).slice(0, 4).forEach((sub, i) => {
         const pos = Office.getSubagentPosition(emp.id, i);
@@ -178,13 +188,44 @@
         alive.add(key);
         const el = ensureDom(key, 'tag helper');
         const p = Office.toScreen(pos.gx, pos.gy, 8);
+        el.hidden = p.visible === false;
         el.style.transform = `translate(${p.x}px, ${p.y}px) translateX(-50%) scale(${scale})`;
         const html = `<div class="name">${esc(sub.name)}</div>`;
         if (el.innerHTML !== html) el.innerHTML = html;
+        if (is3d && !el.hidden) labels.push({ el, x: p.x, y: p.y });
       });
     }
     for (const [key, el] of doms) {
       if (!alive.has(key)) { el.remove(); doms.delete(key); }
+    }
+    if (is3d) placeBubbles(bubbles, labels, scale);
+  }
+
+  // Camera rotation can put a front row's speech over a back row's name.
+  // Keep name anchors fixed and choose the nearest clear spot for speech.
+  function placeBubbles(bubbles, labels, scale) {
+    const occupied = labels.map(({ el, x, y }) => ({
+      left: x - el.offsetWidth * scale / 2 - 5,
+      right: x + el.offsetWidth * scale / 2 + 5,
+      top: y - 5, bottom: y + el.offsetHeight * scale + 5,
+    }));
+    occupied.push(...labels.filter(label => label.silhouette).map(label => label.silhouette));
+    const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    const offsets = [[0, 0], [-85, 0], [85, 0], [0, -65], [-125, 0], [125, 0], [-175, 0], [175, 0], [-85, -65], [85, -65], [0, -130], [0, -200]];
+    for (const { el, x, y } of bubbles.sort((a, b) => a.y - b.y)) {
+      const w = el.offsetWidth * scale, h = el.offsetHeight * scale;
+      let chosen;
+      for (const [dx, dy] of offsets) {
+        const cx = Math.max(w / 2 + 8, Math.min(overlay.clientWidth - w / 2 - 8, x + dx * scale));
+        const cy = Math.max(h + 8, y + dy * scale);
+        const rect = { left: cx - w / 2, right: cx + w / 2, top: cy - h, bottom: cy + 10 * scale };
+        if (!chosen) chosen = { cx, cy, rect };
+        if (!occupied.some(other => overlaps(rect, other))) { chosen = { cx, cy, rect }; break; }
+      }
+      el.style.transform = `translate(${chosen.cx}px, ${chosen.cy}px) translate(-50%, -100%) scale(${scale})`;
+      const tail = Math.max(14, Math.min(el.offsetWidth - 14, el.offsetWidth / 2 + (x - chosen.cx) / scale));
+      el.style.setProperty('--tail-x', `${tail}px`);
+      occupied.push(chosen.rect);
     }
   }
 
