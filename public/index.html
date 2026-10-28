@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#fffaf0">
+<title>코파일럿 마을 · Copilot Virtual Office</title>
+<style>
+  :root { color-scheme: light; --paper:#fffaf0; --ink:#433e34; --muted:#827b68; --line:#e5ddc8; --pill:#eff3df; --green:#537b4a; --bubble:#fffef8; --bubble-ink:#433e34; --tag:#fffaf0ed; }
+  body[data-theme="night"] { color-scheme:dark; --paper:#293831; --ink:#f4efd8; --muted:#bcc9b7; --line:#46564a; --pill:#3d5040; --green:#c1d8a1; --bubble:#f7f2df; --bubble-ink:#433e34; --tag:#293831ed; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; overflow:hidden; }
+  body { background:var(--paper); color:var(--ink); font-family:'Arial Rounded MT Bold','Hiragino Maru Gothic ProN','Apple SD Gothic Neo','Malgun Gothic',sans-serif; -webkit-font-smoothing:antialiased; }
+  button, a { -webkit-tap-highlight-color:transparent; }
+  button:focus-visible, a:focus-visible, #sceneViewport:focus-visible { outline:3px solid #c28743; outline-offset:4px; }
+  header { height:76px; padding:0 30px; display:flex; align-items:center; gap:12px; position:relative; z-index:10; border-bottom:2px solid var(--line); background:var(--paper); }
+  .brand-icon { width:40px; height:40px; flex:none; }
+  .brand { margin-right:auto; }
+  .brand .eyebrow { color:var(--green); font-size:9px; font-weight:800; letter-spacing:2.6px; margin-bottom:4px; }
+  h1 { margin:0; font-size:20px; font-weight:800; letter-spacing:-.7px; }
+  .live { display:flex; align-items:center; gap:7px; padding:9px 13px; border-radius:24px; background:var(--pill); font-size:12px; font-weight:700; white-space:nowrap; }
+  .live::before { content:''; width:7px; height:7px; border-radius:50%; background:#aaa18d; }
+  body[data-connected="true"] .live::before { background:#7aa262; }
+  #demoBadge { font-size:10px; color:#987341; border:1px solid #d9c49e; border-radius:5px; padding:3px 5px; }
+  [hidden] { display:none !important; }
+  #themeBtn { display:flex; align-items:center; gap:7px; border:1.5px solid var(--line); background:transparent; border-radius:24px; padding:8px 12px; min-width:40px; min-height:38px; color:var(--ink); font:inherit; font-size:12px; cursor:pointer; }
+  #themeBtn:hover { background:var(--pill); }
+  #themeIcon { font-size:18px; line-height:1; }
+  #sceneViewport { position:absolute; inset:76px 0 78px; overflow:auto; background:#a6cc89; }
+  #stage { position:relative; width:100%; height:100%; }
+  canvas { display:block; position:absolute; inset:0; width:100%; height:100%; }
+  #overlay { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+  .tag, .bubble, .zone { position:absolute; left:0; top:0; transform-origin:center top; }
+  .tag { text-align:center; white-space:nowrap; }
+  .tag .name { display:inline-block; background:var(--tag); border-radius:12px; padding:4px 10px; font-size:13px; font-weight:800; box-shadow:0 2px 0 #433e3415; }
+  .tag .model { margin-top:4px; font-size:10px; color:var(--ink); font-weight:600; text-shadow:0 1px 2px var(--paper); }
+  .model-dot { width:6px; height:6px; display:inline-block; border-radius:50%; margin-right:4px; vertical-align:1px; }
+  .bubble { width:max-content; max-width:250px; padding:10px 14px; background:var(--bubble); color:var(--bubble-ink); border:2.5px solid #49473c; border-radius:14px; font-size:15px; line-height:1.4; font-weight:700; box-shadow:0 3px 0 #49473c1c; transform-origin:center bottom; }
+  .bubble::after { content:''; position:absolute; left:calc(50% - 7px); bottom:-9px; width:13px; height:13px; background:inherit; border-right:2.5px solid #49473c; border-bottom:2.5px solid #49473c; transform:rotate(45deg); border-radius:0 0 3px 0; }
+  .bubble .message { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bubble.ghost { background:#fff8dc; }
+  .bubble.rest { background:#fff6ef; }
+  .tag.helper .name { font-size:10px; padding:3px 7px; }
+  .zone { padding:4px 12px; color:#66563b; background:#fff2cf; border:2px solid #6e6048; border-radius:6px; font-size:12px; font-weight:800; white-space:nowrap; }
+  #empty { position:absolute; bottom:102px; left:50%; transform:translateX(-50%); z-index:5; display:none; align-items:center; gap:14px; width:max-content; max-width:calc(100% - 32px); background:var(--paper); border:1.5px solid var(--line); border-radius:18px; padding:15px 20px; box-shadow:0 5px 20px #33442b10; }
+  #empty strong { display:block; font-size:14px; margin-bottom:5px; }
+  #empty p { margin:0; color:var(--muted); font-size:12px; line-height:1.6; }
+  #empty code { color:var(--ink); font-weight:700; }
+  #empty a { flex:none; color:var(--green); font-size:12px; font-weight:800; text-underline-offset:4px; }
+  footer { position:absolute; bottom:0; left:0; right:0; height:78px; background:var(--paper); border-top:2px solid var(--line); padding:12px 30px; z-index:10; }
+  .footer-top { display:flex; align-items:center; gap:14px; }
+  .news-label { color:var(--green); font-size:11px; font-weight:800; flex:none; }
+  #ticker { min-width:0; flex:1; color:var(--muted); font-size:12px; line-height:20px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  #ticker .row { display:inline; }
+  #ticker .row + .row::before { content:' · '; padding:0 10px; color:var(--line); }
+  #ticker b { color:var(--ink); font-weight:700; }
+  .footer-bottom { display:flex; align-items:center; gap:16px; color:var(--muted); font-size:10px; margin-top:8px; }
+  .legend { display:flex; gap:14px; }
+  .legend span::before { content:''; display:inline-block; width:6px; height:6px; margin-right:5px; border-radius:50%; background:var(--dot); }
+  #connectionStatus { margin-left:auto; }
+  .pan-hint { display:none; }
+  @media (max-width:700px) {
+    header { padding:0 15px; gap:8px; }
+    .brand-icon { width:32px; height:32px; }
+    h1 { font-size:17px; }
+    .brand .eyebrow { font-size:8px; letter-spacing:1.5px; }
+    .live { padding:8px 10px; font-size:11px; }
+    #themeLabel, #demoBadge { display:none !important; }
+    #themeBtn { padding:8px 10px; }
+    #sceneViewport { bottom:90px; }
+    #stage { min-width:900px; min-height:600px; }
+    footer { padding:11px 16px; height:90px; }
+    .footer-bottom { flex-wrap:wrap; gap:7px 12px; }
+    .pan-hint { display:block; width:100%; font-size:10px; }
+    #empty { bottom:112px; flex-direction:column; gap:8px; text-align:center; width:calc(100% - 32px); padding:12px; }
+  }
+  @media (prefers-reduced-motion:reduce) { * { scroll-behavior:auto !important; } }
+</style>
+</head>
+<body data-connected="false">
+  <header>
+    <svg class="brand-icon" viewBox="0 0 44 44" aria-hidden="true"><rect x="1" y="1" width="42" height="42" rx="15" fill="#e4edce"/><path d="M22 33V20M22 26C9 27 9 12 12 12c10 0 12 8 10 14ZM22 23c-1-10 6-14 13-13 1 8-5 14-13 13Z" fill="#91b078" stroke="#4b6544" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/></svg>
+    <div class="brand"><div class="eyebrow">COPILOT VILLAGE</div><h1>코파일럿 마을</h1></div>
+    <span id="demoBadge" hidden>데모 포함</span>
+    <span class="live" id="liveCount">친구 0명</span>
+    <button id="themeBtn" type="button" aria-label="밤 풍경으로 전환"><span id="themeIcon" aria-hidden="true">☾</span><span id="themeLabel">밤 풍경</span></button>
+  </header>
+  <main id="sceneViewport" tabindex="0" aria-label="실시간 코파일럿 마을. 작은 화면에서는 좌우로 스크롤해서 둘러볼 수 있습니다.">
+    <div id="stage">
+      <canvas id="scene" role="img" aria-label="둥근 동물 친구들이 잔디 마을에서 코파일럿 작업 상태에 따라 일하고 쉬는 일러스트"></canvas>
+      <div id="overlay"></div>
+    </div>
+  </main>
+  <aside id="empty">
+    <div><strong>친구들의 출근을 기다리고 있어요</strong><p>터미널에서 <code>copilot</code>을 실행하면 마을에 친구가 찾아와요.</p></div>
+    <a href="?demo=1">데모 구경하기 ↗</a>
+  </aside>
+  <footer>
+    <div class="footer-top"><span class="news-label">✿ 마을 소식</span><div id="ticker">오늘도 작은 아이디어가 자라는 중이에요.</div></div>
+    <div class="footer-bottom">
+      <div class="legend" aria-label="작업 상태"><span style="--dot:#86a568">작업 중</span><span style="--dot:#d4ad5e">생각 중</span><span style="--dot:#cc9e9a">쉬는 중</span></div>
+      <span id="connectionStatus" role="status">연결 중…</span>
+      <span class="pan-hint">↔ 옆으로 움직여 마을을 둘러보세요</span>
+    </div>
+  </footer>
+  <script src="office.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
